@@ -900,11 +900,11 @@ io.on('connection', (socket) => {
   }
 });
 
-const PORT = 7050;
+const PORT = process.env.PORT || 7000;
 server.listen(PORT, () => {
   console.log(`Devika & Lokesh Wedding Streaming Server running on port ${PORT}`);
-  console.log(`Access at: http://localhost:${PORT}`);
-  console.log(`Viewer link (constant): http://localhost:${PORT}/viewer?stream=${FIXED_STREAM_ID}`);
+//   console.log(`Access at: http://localhost:${PORT}`);
+//   console.log(`Viewer link (constant): http://localhost:${PORT}/viewer?stream=${FIXED_STREAM_ID}`);
 }).on('error', (err) => {
   console.error('Server error:', err);
 });
