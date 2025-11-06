@@ -1,0 +1,119 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+  <title>🎥 Start Live Stream</title>
+</head>
+<body>
+  <h2>Broadcaster - Start Streaming</h2>
+  <video id="localVideo" autoplay  playsinline></video>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io("/");
+    const localVideo = document.getElementById("localVideo");
+    const peers = {};
+    let stream;
+
+    async function startStream() {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = stream;
+      socket.emit("broadcaster");
+    }
+
+    socket.on("watcher", async (id) => {
+      const peer = new RTCPeerConnection();
+      peers[id] = peer;
+
+      stream.getTracks().forEach(track => peer.addTrack(track, stream));
+
+      peer.onicecandidate = (event) => {
+        if (event.candidate) socket.emit("candidate", id, event.candidate);
+      };
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      socket.emit("offer", id, offer);
+    });
+
+    socket.on("answer", (id, description) => {
+      peers[id].setRemoteDescription(description);
+    });
+
+    socket.on("candidate", (id, candidate) => {
+      peers[id].addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    socket.on("disconnectPeer", (id) => {
+      if (peers[id]) peers[id].close();
+      delete peers[id];
+    });
+
+    startStream();
+  </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🎥 Broadcaster</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #111; color: #fff; }
+    video { width: 80%; max-width: 800px; margin-top: 20px; border: 2px solid #0f0; border-radius: 8px; }
+    h1 { color: #0f0; }
+  </style>
+</head>
+<body>
+  <h1>🎥 You Are Live!</h1>
+  <video id="localVideo" autoplay muted playsinline></video>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io("/");
+    const localVideo = document.getElementById("localVideo");
+    const peers = {};
+    let stream;
+
+    async function startStream() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = stream;
+        socket.emit("broadcaster");
+      } catch (err) {
+        alert("Camera/Microphone permission denied or not found!");
+        console.error(err);
+      }
+    }
+
+    socket.on("watcher", async (id) => {
+      const peer = new RTCPeerConnection();
+      peers[id] = peer;
+
+      stream.getTracks().forEach(track => peer.addTrack(track, stream));
+
+      peer.onicecandidate = (event) => {
+        if (event.candidate) socket.emit("candidate", id, event.candidate);
+      };
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      socket.emit("offer", id, offer);
+    });
+
+    socket.on("answer", (id, description) => {
+      peers[id].setRemoteDescription(description);
+    });
+
+    socket.on("candidate", (id, candidate) => {
+      peers[id].addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    socket.on("disconnectPeer", (id) => {
+      if (peers[id]) peers[id].close();
+      delete peers[id];
+    });
+
+    window.onload = startStream;
+  </script>
+</body>
+</html>
