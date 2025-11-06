@@ -1,48 +1,3 @@
-// const express = require("express");
-// const http = require("http");
-// const { Server } = require("socket.io");
-// const path = require("path");
-
-// const app = express();
-// const server = http.createServer(app);
-// const io = new Server(server);
-
-// app.use(express.static(path.join(__dirname, "public")));
-
-// let broadcaster; // store broadcaster’s socket id
-
-// io.on("connection", (socket) => {
-//   console.log("New client:", socket.id);
-
-//   socket.on("broadcaster", () => {
-//     broadcaster = socket.id;
-//     socket.broadcast.emit("broadcaster");
-//     console.log("Broadcaster ready:", broadcaster);
-//   });
-
-//   socket.on("watcher", () => {
-//     if (broadcaster) io.to(broadcaster).emit("watcher", socket.id);
-//   });
-
-//   socket.on("offer", (id, offer) => {
-//     io.to(id).emit("offer", socket.id, offer);
-//   });
-
-//   socket.on("answer", (id, answer) => {
-//     io.to(id).emit("answer", socket.id, answer);
-//   });
-
-//   socket.on("candidate", (id, candidate) => {
-//     io.to(id).emit("candidate", socket.id, candidate);
-//   });
-
-//   socket.on("disconnect", () => {
-//     io.to(broadcaster).emit("disconnectPeer", socket.id);
-//   });
-// });
-
-// const PORT = process.env.PORT || 3000;
-// server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -50,46 +5,67 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
 // Middleware
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
-// Store streams (in production, use a database)
+// Store streams (in production, use a database like Redis or MongoDB)
 let streams = new Map();
 let adminSocket = null;
+
+// Fixed stream ID for constant view link
+const FIXED_STREAM_ID = 'devika-lokesh-wedding';
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
 
 // Routes
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>Marriage Streaming</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Devika & Lokesh Wedding Live Stream</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lora:wght@400;500&display=swap" rel="stylesheet">
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
-            .container { max-width: 600px; margin: 0 auto; }
-            .btn { 
-                display: inline-block; 
-                padding: 15px 30px; 
-                margin: 10px; 
-                background: #007bff; 
-                color: white; 
-                text-decoration: none; 
-                border-radius: 5px; 
-                font-size: 18px;
-            }
-            .btn:hover { background: #0056b3; }
+            body { font-family: 'Lora', serif; background: linear-gradient(135deg, #ffeef8 0%, #f8e8ff 100%); min-height: 100vh; }
+            .hero { background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>') no-repeat center/cover; padding: 100px 0; }
+            .hero h1 { font-family: 'Playfair Display', serif; color: #8b4513; font-size: 3.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
+            .hero p { font-size: 1.2rem; color: #666; }
+            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; padding: 15px 40px; font-size: 1.1rem; border-radius: 50px; transition: transform 0.3s; }
+            .btn-custom:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(255,107,157,0.4); }
+            footer { background: #8b4513; color: white; padding: 20px; text-align: center; margin-top: 50px; }
         </style>
     </head>
     <body>
-        <div class="container">
-            <h1>Welcome to Marriage Streaming</h1>
-            <p>Choose your role:</p>
-            <a href="/admin" class="btn">Admin Stream</a>
-            <a href="/viewer" class="btn">Watch Stream</a>
+        <div class="hero text-center text-white">
+            <div class="container">
+                <h1 class="mb-4">Banoth Devika & Guguloth Lokesh</h1>
+                <p class="lead mb-5">Join us in celebrating their beautiful journey into forever</p>
+                <div class="d-grid gap-3 col-6 mx-auto">
+                    <a href="/admin" class="btn btn-custom btn-lg">Admin: Start Live Stream</a>
+                    <a href="/viewer" class="btn btn-outline-light btn-lg">Watch Live Ceremony</a>
+                </div>
+            </div>
         </div>
+        <footer>
+            <p>&copy; 2025 Devika & Lokesh Wedding. All rights reserved.</p>
+        </footer>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     </body>
     </html>
   `);
@@ -98,150 +74,252 @@ app.get('/', (req, res) => {
 app.get('/admin', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>Admin Stream</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Admin Panel - Devika & Lokesh Wedding</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lora:wght@400;500&display=swap" rel="stylesheet">
         <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .container { max-width: 800px; margin: 0 auto; }
-            #videoPreview { width: 100%; max-width: 640px; background: #000; margin: 10px 0; }
-            .controls { margin: 20px 0; }
-            .btn { 
-                padding: 10px 20px; 
-                margin: 5px; 
-                border: none; 
-                border-radius: 5px; 
-                cursor: pointer; 
-                font-size: 16px;
-            }
-            .start { background: #28a745; color: white; }
-            .stop { background: #dc3545; color: white; }
-            .share { background: #007bff; color: white; }
-            .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
-            .online { background: #d4edda; color: #155724; }
-            .offline { background: #f8d7da; color: #721c24; }
+            body { font-family: 'Lora', serif; background: #f8f9fa; }
+            .header { background: linear-gradient(45deg, #ff6b9d, #c44569); color: white; padding: 20px; text-align: center; }
+            .header h1 { font-family: 'Playfair Display', serif; margin: 0; }
+            #videoPreview { width: 100%; max-width: 800px; height: 450px; background: #000; border-radius: 10px; margin: 20px auto; display: block; }
+            .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0; }
+            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; padding: 12px 24px; border-radius: 25px; color: white; transition: all 0.3s; }
+            .btn-custom:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255,107,157,0.3); color: white; }
+            .btn-secondary-custom { background: #6c757d; }
+            .status { padding: 12px; border-radius: 8px; font-weight: 500; text-align: center; margin: 15px 0; }
+            .online { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+            .offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+            #linkSection { background: #e9ecef; padding: 20px; border-radius: 10px; margin: 20px 0; }
+            #viewerLink { font-size: 1rem; font-family: monospace; }
+            .camera-switch { margin: 10px 0; }
+            .stats { display: flex; justify-content: space-around; margin: 20px 0; }
+            .stat-card { background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex: 1; margin: 0 5px; }
         </style>
     </head>
     <body>
+        <div class="header">
+            <h1>Admin Panel: Live Streaming Control</h1>
+            <p>Devika & Lokesh Wedding Ceremony</p>
+        </div>
         <div class="container">
-            <h1>Admin Streaming Panel</h1>
-            
             <div class="controls">
-                <button class="btn start" onclick="startStream()">Start Stream</button>
-                <button class="btn stop" onclick="stopStream()" disabled>Stop Stream</button>
-                <button class="btn share" onclick="generateLink()">Generate Viewer Link</button>
+                <div class="d-flex justify-content-center gap-3 mb-3">
+                    <button class="btn btn-custom start-stream" onclick="startStream()">Start Live Stream</button>
+                    <button class="btn btn-secondary-custom stop-stream" onclick="stopStream()" disabled>Stop Stream</button>
+                </div>
+                <div class="camera-switch d-flex justify-content-center">
+                    <button class="btn btn-outline-primary me-2" onclick="switchCamera('user')">Front Camera</button>
+                    <button class="btn btn-outline-primary" onclick="switchCamera('environment')">Back Camera</button>
+                </div>
             </div>
-
             <div id="status" class="status offline">Stream Status: Offline</div>
-
-            <video id="videoPreview" autoplay muted></video>
+            <video id="videoPreview" autoplay muted playsinline></video>
             
-            <div id="linkSection" style="display: none; margin: 20px 0;">
-                <h3>Share this link with viewers:</h3>
-                <input type="text" id="viewerLink" style="width: 100%; padding: 10px; font-size: 16px;" readonly>
-                <button onclick="copyLink()" style="padding: 10px 20px; margin: 10px 0;">Copy Link</button>
+            <div id="linkSection" style="display: none;">
+                <h5 class="text-center mb-3">Share the Live Stream Link</h5>
+                <div class="input-group">
+                    <input type="text" id="viewerLink" class="form-control" value="${req.protocol}://${req.get('host')}/viewer?stream=${FIXED_STREAM_ID}" readonly>
+                    <button class="btn btn-custom" type="button" onclick="copyLink()">Copy Link</button>
+                </div>
+                <small class="text-muted d-block text-center mt-2">This link remains the same for all sessions.</small>
             </div>
-
-            <div id="viewerCount" style="margin: 20px 0;">
-                <h3>Viewers: <span id="count">0</span></h3>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <h6>Viewers</h6>
+                    <div id="viewerCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <h6>Stream Duration</h6>
+                    <div id="streamDuration">00:00:00</div>
+                </div>
+                <div class="stat-card">
+                    <h6>Status</h6>
+                    <div id="quickStatus">Offline</div>
+                </div>
             </div>
+        </div>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            const socket = io();
+            let localStream = null;
+            let peerConnections = {};
+            let streamId = '${FIXED_STREAM_ID}';
+            let currentFacingMode = 'user'; // Default to front
+            let startTime = null;
+            let durationInterval = null;
 
-            <script src="/socket.io/socket.io.js"></script>
-            <script>
-                const socket = io();
-                let localStream = null;
-                let peerConnections = {};
-                let streamId = null;
+            // Socket events
+            socket.on('connect', () => {
+                console.log('Admin connected');
+                showLink(); // Always show fixed link
+            });
 
-                // Socket events
-                socket.on('connect', () => {
-                    console.log('Connected as admin');
-                });
+            socket.on('viewer-count', (count) => {
+                document.getElementById('viewerCount').textContent = count;
+            });
 
-                socket.on('viewer-count', (count) => {
-                    document.getElementById('count').textContent = count;
-                });
-
-                socket.on('offer', async (data) => {
+            socket.on('offer', async (data) => {
+                try {
                     await handleOffer(data);
-                });
-
-                socket.on('ice-candidate', (data) => {
-                    handleIceCandidate(data);
-                });
-
-                // Stream functions
-                async function startStream() {
-                    try {
-                        localStream = await navigator.mediaDevices.getUserMedia({ 
-                            video: { width: 1280, height: 720 }, 
-                            audio: true 
-                        });
-                        
-                        document.getElementById('videoPreview').srcObject = localStream;
-                        document.querySelector('.start').disabled = true;
-                        document.querySelector('.stop').disabled = false;
-                        document.getElementById('status').className = 'status online';
-                        document.getElementById('status').textContent = 'Stream Status: Live';
-                        
-                        streamId = 'stream_' + Date.now();
-                        socket.emit('start-stream', { streamId: streamId });
-                        
-                    } catch (error) {
-                        console.error('Error starting stream:', error);
-                        alert('Error accessing camera/microphone: ' + error.message);
-                    }
+                } catch (error) {
+                    console.error('Error handling offer:', error);
+                    alert('Connection error: ' + error.message);
                 }
+            });
 
-                function stopStream() {
+            socket.on('ice-candidate', (data) => {
+                handleIceCandidate(data);
+            });
+
+            // Always show the fixed link
+            function showLink() {
+                document.getElementById('linkSection').style.display = 'block';
+                document.getElementById('viewerLink').value = '${req.protocol}://${req.get('host')}/viewer?stream=${FIXED_STREAM_ID}';
+            }
+
+            // Stream functions
+            async function startStream() {
+                try {
                     if (localStream) {
-                        localStream.getTracks().forEach(track => track.stop());
-                        localStream = null;
-                    }
-                    
-                    document.getElementById('videoPreview').srcObject = null;
-                    document.querySelector('.start').disabled = false;
-                    document.querySelector('.stop').disabled = true;
-                    document.getElementById('status').className = 'status offline';
-                    document.getElementById('status').textContent = 'Stream Status: Offline';
-                    
-                    socket.emit('stop-stream');
-                    
-                    // Close all peer connections
-                    Object.values(peerConnections).forEach(pc => pc.close());
-                    peerConnections = {};
-                }
-
-                function generateLink() {
-                    if (!streamId) {
-                        alert('Please start the stream first');
+                        await switchCamera(currentFacingMode); // Ensure stream is active
                         return;
                     }
-                    
-                    const viewerUrl = \`\${window.location.origin}/viewer?stream=\${streamId}\`;
-                    document.getElementById('viewerLink').value = viewerUrl;
-                    document.getElementById('linkSection').style.display = 'block';
+
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: { 
+                            width: { ideal: 1280 }, 
+                            height: { ideal: 720 },
+                            facingMode: { exact: currentFacingMode }
+                        },
+                        audio: { echoCancellation: true, noiseSuppression: true }
+                    });
+
+                    document.getElementById('videoPreview').srcObject = localStream;
+                    document.querySelector('.start-stream').disabled = true;
+                    document.querySelector('.stop-stream').disabled = false;
+                    document.getElementById('status').className = 'status online';
+                    document.getElementById('status').textContent = 'Stream Status: Live';
+                    document.getElementById('quickStatus').textContent = 'Live';
+                    showLink();
+
+                    startTime = Date.now();
+                    durationInterval = setInterval(updateDuration, 1000);
+
+                    socket.emit('start-stream', { streamId: streamId });
+                    console.log('Stream started with ID:', streamId);
+                } catch (error) {
+                    console.error('Error starting stream:', error);
+                    alert('Error accessing camera/microphone: ' + (error.name === 'NotAllowedError' ? 'Permission denied. Please allow camera and microphone access.' : error.message));
+                }
+            }
+
+            async function switchCamera(facingMode) {
+                if (!localStream) {
+                    alert('Please start the stream first.');
+                    return;
                 }
 
-                function copyLink() {
-                    const linkInput = document.getElementById('viewerLink');
+                try {
+                    // Stop current tracks
+                    localStream.getTracks().forEach(track => track.stop());
+
+                    // Get new stream with switched camera
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: { 
+                            width: { ideal: 1280 }, 
+                            height: { ideal: 720 },
+                            facingMode: { exact: facingMode }
+                        },
+                        audio: true
+                    });
+
+                    document.getElementById('videoPreview').srcObject = localStream;
+                    currentFacingMode = facingMode;
+
+                    // Re-add tracks to all peer connections
+                    Object.values(peerConnections).forEach(pc => {
+                        pc.getSenders().forEach(sender => {
+                            if (sender.track && sender.track.kind === 'video') {
+                                sender.replaceTrack(localStream.getVideoTracks()[0]);
+                            }
+                        });
+                    });
+
+                    
+                } catch (error) {
+                    console.error('Error switching camera:', error);
+                    // Fallback to default
+                    startStream();
+                    alert('Error switching camera: ' + error.message + '. Reverting to default.');
+                }
+            }
+
+            function stopStream() {
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
+                }
+
+                document.getElementById('videoPreview').srcObject = null;
+                document.querySelector('.start-stream').disabled = false;
+                document.querySelector('.stop-stream').disabled = true;
+                document.getElementById('status').className = 'status offline';
+                document.getElementById('status').textContent = 'Stream Status: Offline';
+                document.getElementById('quickStatus').textContent = 'Offline';
+                document.getElementById('viewerCount').textContent = '0';
+                document.getElementById('streamDuration').textContent = '00:00:00';
+
+                if (durationInterval) {
+                    clearInterval(durationInterval);
+                    durationInterval = null;
+                }
+                startTime = null;
+
+                socket.emit('stop-stream', { streamId: streamId });
+
+                // Close all peer connections
+                Object.values(peerConnections).forEach(pc => pc.close());
+                peerConnections = {};
+
+                console.log('Stream stopped');
+            }
+
+            function copyLink() {
+                const linkInput = document.getElementById('viewerLink');
+                navigator.clipboard.writeText(linkInput.value).then(() => {
+                    alert('Link copied to clipboard! Share with guests.');
+                }).catch(() => {
+                    // Fallback
                     linkInput.select();
                     document.execCommand('copy');
                     alert('Link copied to clipboard!');
-                }
+                });
+            }
 
-                // WebRTC functions
-                async function handleOffer(data) {
-                    const peerConnection = new RTCPeerConnection({
+            function updateDuration() {
+                if (!startTime) return;
+                const now = Date.now();
+                const elapsed = Math.floor((now - startTime) / 1000);
+                const hours = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((elapsed % 3600) / 3600).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('streamDuration').textContent = \`\${hours}:\${minutes}:\${seconds}\`;
+            }
+
+            // WebRTC functions
+            async function handleOffer(data) {
+                let peerConnection = peerConnections[data.viewerId];
+                if (!peerConnection) {
+                    peerConnection = new RTCPeerConnection({
                         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
                     });
-
                     peerConnections[data.viewerId] = peerConnection;
-
-                    // Add local stream to connection
-                    localStream.getTracks().forEach(track => {
-                        peerConnection.addTrack(track, localStream);
-                    });
 
                     // Handle ICE candidates
                     peerConnection.onicecandidate = (event) => {
@@ -253,113 +331,180 @@ app.get('/admin', (req, res) => {
                         }
                     };
 
-                    await peerConnection.setRemoteDescription(data.offer);
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-
-                    socket.emit('answer', {
-                        viewerId: data.viewerId,
-                        answer: answer
-                    });
+                    // Handle connection state
+                    peerConnection.onconnectionstatechange = () => {
+                        if (peerConnection.connectionState === 'disconnected') {
+                            delete peerConnections[data.viewerId];
+                        }
+                    };
                 }
 
-                function handleIceCandidate(data) {
-                    const peerConnection = peerConnections[data.viewerId];
-                    if (peerConnection) {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    }
-                }
-
-                // Handle page unload
-                window.addEventListener('beforeunload', () => {
-                    if (localStream) {
-                        stopStream();
+                // Add or replace tracks
+                localStream.getTracks().forEach(track => {
+                    const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === track.kind);
+                    if (sender) {
+                        sender.replaceTrack(track);
+                    } else {
+                        peerConnection.addTrack(track, localStream);
                     }
                 });
-            </script>
-        </div>
+
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('answer', {
+                    viewerId: data.viewerId,
+                    answer: answer
+                });
+            }
+
+            function handleIceCandidate(data) {
+                const peerConnection = peerConnections[data.viewerId];
+                if (peerConnection) {
+                    peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(error => {
+                        console.error('Error adding ICE candidate:', error);
+                    });
+                }
+            }
+
+            // Handle page unload
+            window.addEventListener('beforeunload', () => {
+                if (localStream) {
+                    stopStream();
+                }
+            });
+
+            // Permission check on load
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+                stream.getTracks().forEach(track => track.stop());
+            }).catch(error => {
+                if (error.name === 'NotAllowedError') {
+                    alert('Camera and microphone permissions are required. Please enable them in your browser settings.');
+                }
+            });
+        </script>
     </body>
     </html>
   `);
 });
 
 app.get('/viewer', (req, res) => {
-  const streamId = req.query.stream;
-  
+  const streamId = req.query.stream || FIXED_STREAM_ID;
+
   res.send(`
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>Watch Marriage Stream</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Live Stream - Devika & Lokesh Wedding</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lora:wght@400;500&display=swap" rel="stylesheet">
         <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
-            .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
-            #videoPlayer { width: 100%; background: #000; margin: 10px 0; }
-            .status { padding: 10px; margin: 10px 0; border-radius: 5px; text-align: center; }
-            .waiting { background: #fff3cd; color: #856404; }
-            .live { background: #d4edda; color: #155724; }
-            .offline { background: #f8d7da; color: #721c24; }
-            .chat { margin: 20px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-            .messages { height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0; }
-            .message { margin: 5px 0; padding: 5px; background: #f8f9fa; border-radius: 3px; }
+            body { font-family: 'Lora', serif; background: linear-gradient(135deg, #ffeef8 0%, #f8e8ff 100%); min-height: 100vh; }
+            .header { background: linear-gradient(45deg, #ff6b9d, #c44569); color: white; padding: 15px; text-align: center; }
+            .header h1 { font-family: 'Playfair Display', serif; margin: 0; font-size: 2rem; }
+            #videoPlayer { width: 100%; max-width: 900px; height: 506px; background: #000; border-radius: 15px; margin: 20px auto; display: block; }
+            .status { padding: 12px; border-radius: 8px; font-weight: 500; text-align: center; margin: 15px 0; }
+            .waiting { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+            .live { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+            .offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+            .chat { background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0; height: 400px; overflow: hidden; }
+            .messages { height: 300px; overflow-y: auto; padding: 15px; background: #f8f9fa; }
+            .message { margin: 8px 0; padding: 10px; background: white; border-radius: 15px; border-bottom-right-radius: 5px; max-width: 80%; }
+            .message.sent { margin-left: auto; background: #ff6b9d; color: white; border-bottom-left-radius: 5px; }
+            .chat-input { padding: 15px; border-top: 1px solid #dee2e6; }
+            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; border-radius: 25px; color: white; }
+            .btn-custom:hover { color: white; box-shadow: 0 2px 8px rgba(255,107,157,0.3); }
+            .schedule { background: white; border-radius: 10px; padding: 20px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .schedule h5 { color: #8b4513; font-family: 'Playfair Display', serif; }
+            .viewer-count { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 20px; font-weight: bold; color: #c44569; }
         </style>
     </head>
     <body>
+        <div class="header">
+            <h1>Devika & Lokesh Wedding Live</h1>
+            <p class="mb-0">Celebrating love and new beginnings</p>
+        </div>
         <div class="container">
-            <h1>Marriage Ceremony Live Stream</h1>
-            
             <div id="status" class="status waiting">
-                ${streamId ? 'Connecting to stream...' : 'No stream specified'}
+                ${streamId === FIXED_STREAM_ID ? 'Connecting to live ceremony...' : 'Invalid stream. Using default wedding stream.'}
             </div>
-
-            <video id="videoPlayer" autoplay controls></video>
+            <div style="position: relative;">
+                <video id="videoPlayer" autoplay controls playsinline class="img-fluid mx-auto d-block"></video>
+                <div id="viewerBadge" class="viewer-count" style="display: none;">0 Viewers</div>
+            </div>
             
-            <div class="chat">
-                <h3>Live Chat</h3>
-                <div id="messages" class="messages"></div>
-                <div>
-                    <input type="text" id="messageInput" placeholder="Type your message..." style="width: 70%; padding: 10px;">
-                    <button onclick="sendMessage()" style="padding: 10px 20px;">Send</button>
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="chat">
+                        <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                            <h6 class="mb-0">Live Chat</h6>
+                            <span class="badge bg-light text-dark" id="chatViewerCount">0 online</span>
+                        </div>
+                        <div id="messages" class="messages"></div>
+                        <div class="chat-input">
+                            <div class="input-group">
+                                <input type="text" id="messageInput" class="form-control" placeholder="Send a congratulatory message..." onkeypress="if(event.key==='Enter') sendMessage()">
+                                <button class="btn btn-custom px-4" onclick="sendMessage()">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="schedule">
+                        <h5>Event Schedule</h5>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><strong>10:00 AM:</strong> Baraat Arrival</li>
+                            <li class="mb-2"><strong>11:00 AM:</strong> Welcome & Rituals</li>
+                            <li class="mb-2"><strong>12:00 PM:</strong> Vivaah (Main Ceremony)</li>
+                            <li class="mb-2"><strong>2:00 PM:</strong> Reception Begins</li>
+                        </ul>
+                        <button class="btn btn-custom w-100 mt-3" onclick="shareStream()">Share Stream</button>
+                    </div>
                 </div>
             </div>
-
-            <div style="text-align: center; margin: 20px 0;">
-                <button onclick="shareStream()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                    Share this Stream
-                </button>
-            </div>
         </div>
-
         <script src="/socket.io/socket.io.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             const socket = io();
-            const streamId = '${streamId || ''}';
+            const streamId = '${streamId}';
             let peerConnection = null;
+            let currentUserId = 'viewer_' + Math.random().toString(36).substr(2, 9);
 
             // Socket events
             socket.on('connect', () => {
-                console.log('Connected as viewer');
+                console.log('Viewer connected');
                 if (streamId) {
                     joinStream();
+                } else {
+                    document.getElementById('status').textContent = 'No stream available. Please check back later.';
                 }
             });
 
             socket.on('stream-started', () => {
                 document.getElementById('status').className = 'status live';
-                document.getElementById('status').textContent = 'Stream is Live';
+                document.getElementById('status').textContent = 'Live Now - Ceremony in Progress';
             });
 
             socket.on('stream-stopped', () => {
                 document.getElementById('status').className = 'status offline';
-                document.getElementById('status').textContent = 'Stream has ended';
+                document.getElementById('status').textContent = 'Stream Ended. Thank you for joining!';
                 if (peerConnection) {
                     peerConnection.close();
                     peerConnection = null;
+                    document.getElementById('videoPlayer').srcObject = null;
                 }
             });
 
             socket.on('answer', async (data) => {
-                await handleAnswer(data);
+                try {
+                    await handleAnswer(data);
+                } catch (error) {
+                    console.error('Error handling answer:', error);
+                    document.getElementById('status').textContent = 'Connection failed. Refresh to retry.';
+                }
             });
 
             socket.on('ice-candidate', (data) => {
@@ -367,23 +512,23 @@ app.get('/viewer', (req, res) => {
             });
 
             socket.on('chat-message', (data) => {
-                addMessage(data.user, data.message);
+                addMessage(data.user, data.message, data.userId === currentUserId);
             });
 
             socket.on('viewer-count', (count) => {
-                document.getElementById('status').textContent = \`Stream is Live - \${count} viewers\`;
+                document.getElementById('viewerBadge').style.display = 'block';
+                document.getElementById('viewerBadge').textContent = count + ' Viewers';
+                document.getElementById('status').textContent = 'Live Now - ' + count + ' viewers';
+                document.getElementById('chatViewerCount').textContent = count + ' online';
             });
 
             // Stream functions
             function joinStream() {
                 if (!streamId) {
-                    alert('No stream ID provided');
+                    alert('No stream ID. Using default wedding stream.');
                     return;
                 }
-
-                socket.emit('join-stream', { streamId: streamId });
-                
-                // Setup WebRTC
+                socket.emit('join-stream', { streamId: streamId, viewerId: currentUserId });
                 setupWebRTC();
             }
 
@@ -394,8 +539,7 @@ app.get('/viewer', (req, res) => {
 
                 // Handle incoming stream
                 peerConnection.ontrack = (event) => {
-                    const videoPlayer = document.getElementById('videoPlayer');
-                    videoPlayer.srcObject = event.streams[0];
+                    document.getElementById('videoPlayer').srcObject = event.streams[0];
                 };
 
                 // Handle ICE candidates
@@ -403,40 +547,46 @@ app.get('/viewer', (req, res) => {
                     if (event.candidate) {
                         socket.emit('ice-candidate', {
                             streamId: streamId,
+                            viewerId: currentUserId,
                             candidate: event.candidate
                         });
                     }
                 };
 
-                // Create and send offer
+                // Handle connection state
+                peerConnection.onconnectionstatechange = () => {
+                    if (peerConnection.connectionState === 'failed') {
+                        document.getElementById('status').textContent = 'Connection failed. Refresh page.';
+                    }
+                };
+
                 createOffer();
             }
 
             async function createOffer() {
                 try {
-                    const offer = await peerConnection.createOffer();
+                    const offer = await peerConnection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
                     await peerConnection.setLocalDescription(offer);
-                    
                     socket.emit('offer', {
                         streamId: streamId,
+                        viewerId: currentUserId,
                         offer: offer
                     });
                 } catch (error) {
                     console.error('Error creating offer:', error);
+                    alert('Failed to connect to stream: ' + error.message);
                 }
             }
 
             async function handleAnswer(data) {
-                try {
-                    await peerConnection.setRemoteDescription(data.answer);
-                } catch (error) {
-                    console.error('Error setting remote description:', error);
-                }
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
             }
 
             function handleIceCandidate(data) {
-                if (peerConnection) {
-                    peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                if (peerConnection && data.viewerId === currentUserId) {
+                    peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(error => {
+                        console.error('Error adding ICE candidate:', error);
+                    });
                 }
             }
 
@@ -444,20 +594,21 @@ app.get('/viewer', (req, res) => {
             function sendMessage() {
                 const input = document.getElementById('messageInput');
                 const message = input.value.trim();
-                
-                if (message) {
+                if (message && streamId) {
                     socket.emit('chat-message', {
                         streamId: streamId,
+                        userId: currentUserId,
+                        user: 'Guest ' + currentUserId.substring(0, 4).toUpperCase(),
                         message: message
                     });
                     input.value = '';
                 }
             }
 
-            function addMessage(user, message) {
+            function addMessage(user, message, isOwn) {
                 const messagesDiv = document.getElementById('messages');
                 const messageDiv = document.createElement('div');
-                messageDiv.className = 'message';
+                messageDiv.className = 'message' + (isOwn ? ' sent' : '');
                 messageDiv.innerHTML = \`<strong>\${user}:</strong> \${message}\`;
                 messagesDiv.appendChild(messageDiv);
                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -466,16 +617,19 @@ app.get('/viewer', (req, res) => {
             function shareStream() {
                 const streamUrl = window.location.href;
                 navigator.clipboard.writeText(streamUrl).then(() => {
-                    alert('Stream link copied to clipboard!');
+                    new bootstrap.Toast(document.createElement('div')).show(); // Simple alert
+                    alert('Stream link copied! Invite friends to join the celebration.');
+                }).catch(() => {
+                    alert('Unable to copy. Please copy the URL manually.');
                 });
             }
 
-            // Auto-join if stream ID is present
+            // Auto-join
             if (streamId) {
-                document.getElementById('status').textContent = 'Connecting to stream...';
+                document.getElementById('status').textContent = 'Connecting to ceremony...';
             } else {
                 document.getElementById('status').className = 'status offline';
-                document.getElementById('status').textContent = 'No stream specified. Please use a valid stream link.';
+                document.getElementById('status').textContent = 'Stream not available.';
             }
         </script>
     </body>
@@ -489,127 +643,173 @@ io.on('connection', (socket) => {
 
   // Admin starts streaming
   socket.on('start-stream', (data) => {
-    streams.set(data.streamId, {
-      adminId: socket.id,
-      viewers: new Set()
-    });
-    adminSocket = socket;
-    console.log('Stream started:', data.streamId);
+    try {
+      if (!streams.has(data.streamId)) {
+        streams.set(data.streamId, {
+          adminId: socket.id,
+          viewers: new Set(),
+          startTime: Date.now()
+        });
+      }
+      adminSocket = socket;
+      socket.join(data.streamId);
+      io.to(data.streamId).emit('stream-started');
+      console.log('Stream started:', data.streamId);
+    } catch (error) {
+      console.error('Error starting stream:', error);
+      socket.emit('error', { message: 'Failed to start stream' });
+    }
   });
 
   // Viewer joins stream
   socket.on('join-stream', (data) => {
-    const stream = streams.get(data.streamId);
-    if (stream) {
-      stream.viewers.add(socket.id);
+    try {
+      let stream = streams.get(data.streamId);
+      if (!stream) {
+        // Auto-create if admin not started yet (for fixed ID)
+        stream = { adminId: null, viewers: new Set() };
+        streams.set(data.streamId, stream);
+      }
+      stream.viewers.add({ id: socket.id, viewerId: data.viewerId });
       socket.join(data.streamId);
-      
-      // Notify admin about new viewer
-      socket.to(stream.adminId).emit('viewer-connected', { viewerId: socket.id });
-      
-      // Update viewer count
+
+      if (stream.adminId) {
+        socket.to(stream.adminId).emit('viewer-connected', { viewerId: data.viewerId });
+      }
+
       updateViewerCount(data.streamId);
-      
       console.log(`Viewer ${socket.id} joined stream ${data.streamId}`);
-    } else {
-      socket.emit('stream-not-found');
+    } catch (error) {
+      console.error('Error joining stream:', error);
+      socket.emit('error', { message: 'Stream not found' });
     }
   });
 
   // WebRTC signaling - Offer from viewer
   socket.on('offer', (data) => {
-    const stream = streams.get(data.streamId);
-    if (stream && adminSocket) {
-      adminSocket.emit('offer', {
-        viewerId: socket.id,
-        offer: data.offer
-      });
+    try {
+      const stream = streams.get(data.streamId);
+      if (stream && adminSocket && adminSocket.id !== socket.id) {
+        adminSocket.emit('offer', {
+          viewerId: data.viewerId,
+          offer: data.offer
+        });
+      }
+    } catch (error) {
+      console.error('Error handling offer:', error);
     }
   });
 
   // WebRTC signaling - Answer from admin
   socket.on('answer', (data) => {
-    socket.to(data.viewerId).emit('answer', {
-      answer: data.answer
-    });
+    try {
+      socket.to(data.viewerId).emit('answer', { answer: data.answer });
+    } catch (error) {
+      console.error('Error sending answer:', error);
+    }
   });
 
   // ICE candidates
   socket.on('ice-candidate', (data) => {
-    if (data.viewerId) {
-      // From admin to specific viewer
-      socket.to(data.viewerId).emit('ice-candidate', {
-        candidate: data.candidate
-      });
-    } else if (data.streamId) {
-      // From viewer to admin
-      const stream = streams.get(data.streamId);
-      if (stream && adminSocket) {
-        adminSocket.emit('ice-candidate', {
-          viewerId: socket.id,
+    try {
+      if (data.viewerId) {
+        // From admin to specific viewer
+        socket.to(data.viewerId).emit('ice-candidate', {
+          viewerId: data.viewerId,
           candidate: data.candidate
         });
+      } else if (data.streamId) {
+        // From viewer to admin
+        const stream = streams.get(data.streamId);
+        if (stream && adminSocket) {
+          adminSocket.emit('ice-candidate', {
+            viewerId: data.viewerId,
+            candidate: data.candidate
+          });
+        }
       }
+    } catch (error) {
+      console.error('Error handling ICE candidate:', error);
     }
   });
 
   // Chat messages
   socket.on('chat-message', (data) => {
-    const stream = streams.get(data.streamId);
-    if (stream) {
-      socket.to(data.streamId).emit('chat-message', {
-        user: `Viewer${socket.id.substring(0, 4)}`,
-        message: data.message
-      });
+    try {
+      const stream = streams.get(data.streamId);
+      if (stream) {
+        socket.to(data.streamId).emit('chat-message', {
+          userId: data.userId,
+          user: data.user,
+          message: data.message
+        });
+      }
+    } catch (error) {
+      console.error('Error sending chat message:', error);
     }
   });
 
   // Admin stops streaming
-  socket.on('stop-stream', () => {
-    // Find and remove the stream where this socket is admin
-    for (let [streamId, stream] of streams.entries()) {
-      if (stream.adminId === socket.id) {
-        // Notify all viewers
-        io.to(streamId).emit('stream-stopped');
-        streams.delete(streamId);
-        console.log('Stream stopped:', streamId);
-        break;
+  socket.on('stop-stream', (data) => {
+    try {
+      const stream = streams.get(data.streamId);
+      if (stream && stream.adminId === socket.id) {
+        io.to(data.streamId).emit('stream-stopped');
+        streams.delete(data.streamId);
+        console.log('Stream stopped:', data.streamId);
       }
+    } catch (error) {
+      console.error('Error stopping stream:', error);
     }
   });
 
   // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    
-    // Check if disconnecting user is an admin
-    for (let [streamId, stream] of streams.entries()) {
-      if (stream.adminId === socket.id) {
-        // Admin disconnected - stop the stream
-        io.to(streamId).emit('stream-stopped');
-        streams.delete(streamId);
-        console.log('Stream stopped due to admin disconnect:', streamId);
-        break;
-      } else if (stream.viewers.has(socket.id)) {
-        // Viewer disconnected
-        stream.viewers.delete(socket.id);
-        updateViewerCount(streamId);
+  socket.on('disconnect', (reason) => {
+    console.log('User disconnected:', socket.id, 'Reason:', reason);
+
+    try {
+      for (let [streamId, stream] of streams.entries()) {
+        if (stream.adminId === socket.id) {
+          // Admin disconnected - stop the stream
+          io.to(streamId).emit('stream-stopped');
+          streams.delete(streamId);
+          console.log('Stream stopped due to admin disconnect:', streamId);
+          break;
+        } else {
+          // Viewer disconnected
+          const viewer = Array.from(stream.viewers).find(v => v.id === socket.id);
+          if (viewer) {
+            stream.viewers.delete(viewer);
+            updateViewerCount(streamId);
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error handling disconnect:', error);
     }
   });
 
   function updateViewerCount(streamId) {
-    const stream = streams.get(streamId);
-    if (stream) {
-      const count = stream.viewers.size;
-      io.to(streamId).emit('viewer-count', count);
-      socket.to(stream.adminId).emit('viewer-count', count);
+    try {
+      const stream = streams.get(streamId);
+      if (stream) {
+        const count = stream.viewers.size;
+        io.to(streamId).emit('viewer-count', count);
+        if (stream.adminId) {
+          io.to(stream.adminId).emit('viewer-count', count);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating viewer count:', error);
     }
   }
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Marriage streaming server running on port ${PORT}`);
-  console.log(`Access the application at: http://localhost:${PORT}`);
+  console.log(`Devika & Lokesh Wedding Streaming Server running on port ${PORT}`);
+  console.log(`Access at: http://localhost:${PORT}`);
+  console.log(`Viewer link (constant): http://localhost:${PORT}/viewer?stream=${FIXED_STREAM_ID}`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
 });
