@@ -42,18 +42,21 @@ app.get('/', (req, res) => {
         <title>Devika & Lokesh Wedding Live Stream</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
         <style>
             body { font-family: 'Lora', serif; background: linear-gradient(135deg, #ffeef8 0%, #f8e8ff 100%); min-height: 100vh; }
             .hero { background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>') no-repeat center/cover; padding: 100px 0; }
             .hero h1 { font-family: 'Playfair Display', serif; color: #8b4513; font-size: 3.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
             .hero p { font-size: 1.2rem; color: #666; }
-            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; padding: 15px 40px; font-size: 1.1rem; border-radius: 50px; transition: transform 0.3s; }
-            .btn-custom:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(255,107,157,0.4); }
+            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; padding: 15px 40px; font-size: 1.1rem; border-radius: 50px; transition: transform 0.3s; box-shadow: 0 4px 15px rgba(255,107,157,0.2); }
+            .btn-custom:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255,107,157,0.3); }
             footer { background: #8b4513; color: white; padding: 20px; text-align: center; margin-top: 50px; }
+            .fade-in { animation: fadeIn 1s ease-in; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         </style>
     </head>
     <body>
-        <div class="hero text-center text-white">
+        <div class="hero text-center text-white fade-in">
             <div class="container">
                 <h1 class="mb-4">Banoth Devika & Guguloth Lokesh</h1>
                 <p class="lead mb-5">Join us in celebrating their beautiful journey into forever</p>
@@ -84,21 +87,24 @@ app.get('/admin', (req, res) => {
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lora:wght@400;500&display=swap" rel="stylesheet">
         <style>
             body { font-family: 'Lora', serif; background: #f8f9fa; }
-            .header { background: linear-gradient(45deg, #ff6b9d, #c44569); color: white; padding: 20px; text-align: center; }
+            .header { background: linear-gradient(45deg, #ff6b9d, #c44569); color: white; padding: 20px; text-align: center; box-shadow: 0 4px 15px rgba(255,107,157,0.2); }
             .header h1 { font-family: 'Playfair Display', serif; margin: 0; }
-            #videoPreview { width: 100%; max-width: 800px; height: 450px; background: #000; border-radius: 10px; margin: 20px auto; display: block; }
-            .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0; }
-            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; padding: 12px 24px; border-radius: 25px; color: white; transition: all 0.3s; }
-            .btn-custom:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255,107,157,0.3); color: white; }
-            .btn-secondary-custom { background: #6c757d; }
-            .status { padding: 12px; border-radius: 8px; font-weight: 500; text-align: center; margin: 15px 0; }
+            #videoPreview { width: 100%; max-width: 800px; height: 450px; background: #000; border-radius: 15px; margin: 20px auto; display: block; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+            .controls { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 20px 0; }
+            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; padding: 12px 24px; border-radius: 25px; color: white; transition: all 0.3s; box-shadow: 0 2px 10px rgba(255,107,157,0.2); }
+            .btn-custom:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(255,107,157,0.3); color: white; }
+            .btn-secondary-custom { background: #6c757d; box-shadow: 0 2px 10px rgba(108,117,125,0.2); }
+            .btn-secondary-custom:hover { box-shadow: 0 4px 15px rgba(108,117,125,0.3); }
+            .status { padding: 15px; border-radius: 10px; font-weight: 500; text-align: center; margin: 15px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
             .online { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
             .offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-            #linkSection { background: #e9ecef; padding: 20px; border-radius: 10px; margin: 20px 0; }
+            #linkSection { background: #e9ecef; padding: 25px; border-radius: 15px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
             #viewerLink { font-size: 1rem; font-family: monospace; }
-            .camera-switch { margin: 10px 0; }
-            .stats { display: flex; justify-content: space-around; margin: 20px 0; }
-            .stat-card { background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex: 1; margin: 0 5px; }
+            .camera-switch { margin: 15px 0; }
+            .stats { display: flex; justify-content: space-around; margin: 20px 0; gap: 10px; }
+            .stat-card { background: white; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); flex: 1; transition: transform 0.3s; }
+            .stat-card:hover { transform: translateY(-5px); }
+            .stat-value { font-size: 1.5rem; font-weight: bold; color: #c44569; }
         </style>
     </head>
     <body>
@@ -112,8 +118,8 @@ app.get('/admin', (req, res) => {
                     <button class="btn btn-custom start-stream" onclick="startStream()">Start Live Stream</button>
                     <button class="btn btn-secondary-custom stop-stream" onclick="stopStream()" disabled>Stop Stream</button>
                 </div>
-                <div class="camera-switch d-flex justify-content-center">
-                    <button class="btn btn-outline-primary me-2" onclick="switchCamera('user')">Front Camera</button>
+                <div class="camera-switch d-flex justify-content-center gap-2">
+                    <button class="btn btn-outline-primary" onclick="switchCamera('user')">Front Camera</button>
                     <button class="btn btn-outline-primary" onclick="switchCamera('environment')">Back Camera</button>
                 </div>
             </div>
@@ -131,8 +137,8 @@ app.get('/admin', (req, res) => {
             
             <div class="stats">
                 <div class="stat-card">
-                    <h6>Viewers</h6>
-                    <div id="viewerCount">0</div>
+                    <h6>Live Viewers</h6>
+                    <div class="stat-value" id="viewerCount">0</div>
                 </div>
                 <div class="stat-card">
                     <h6>Stream Duration</h6>
@@ -248,11 +254,13 @@ app.get('/admin', (req, res) => {
                         pc.getSenders().forEach(sender => {
                             if (sender.track && sender.track.kind === 'video') {
                                 sender.replaceTrack(localStream.getVideoTracks()[0]);
+                            } else if (sender.track && sender.track.kind === 'audio') {
+                                sender.replaceTrack(localStream.getAudioTracks()[0]);
                             }
                         });
                     });
 
-                    
+                  
                 } catch (error) {
                     console.error('Error switching camera:', error);
                     // Fallback to default
@@ -406,25 +414,28 @@ app.get('/viewer', (req, res) => {
         <title>Live Stream - Devika & Lokesh Wedding</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
         <style>
             body { font-family: 'Lora', serif; background: linear-gradient(135deg, #ffeef8 0%, #f8e8ff 100%); min-height: 100vh; }
-            .header { background: linear-gradient(45deg, #ff6b9d, #c44569); color: white; padding: 15px; text-align: center; }
+            .header { background: linear-gradient(45deg, #ff6b9d, #c44569); color: white; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(255,107,157,0.2); }
             .header h1 { font-family: 'Playfair Display', serif; margin: 0; font-size: 2rem; }
-            #videoPlayer { width: 100%; max-width: 900px; height: 506px; background: #000; border-radius: 15px; margin: 20px auto; display: block; }
-            .status { padding: 12px; border-radius: 8px; font-weight: 500; text-align: center; margin: 15px 0; }
+            #videoPlayer { width: 100%; max-width: 900px; height: 506px; background: #000; border-radius: 15px; margin: 20px auto; display: block; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+            .status { padding: 15px; border-radius: 10px; font-weight: 500; text-align: center; margin: 15px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
             .waiting { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
-            .live { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+            .live { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; animation: pulse 2s infinite; }
             .offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-            .chat { background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 20px 0; height: 400px; overflow: hidden; }
+            @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(40,167,69,0.7); } 70% { box-shadow: 0 0 0 10px rgba(40,167,69,0); } 100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); } }
+            .chat { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 20px 0; height: 400px; overflow: hidden; }
             .messages { height: 300px; overflow-y: auto; padding: 15px; background: #f8f9fa; }
-            .message { margin: 8px 0; padding: 10px; background: white; border-radius: 15px; border-bottom-right-radius: 5px; max-width: 80%; }
-            .message.sent { margin-left: auto; background: #ff6b9d; color: white; border-bottom-left-radius: 5px; }
+            .message { margin: 8px 0; padding: 12px; background: white; border-radius: 18px; border-bottom-right-radius: 5px; max-width: 80%; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            .message.sent { margin-left: auto; background: linear-gradient(45deg, #ff6b9d, #c44569); color: white; border-bottom-left-radius: 5px; border-bottom-right-radius: 18px; }
             .chat-input { padding: 15px; border-top: 1px solid #dee2e6; }
-            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; border-radius: 25px; color: white; }
-            .btn-custom:hover { color: white; box-shadow: 0 2px 8px rgba(255,107,157,0.3); }
-            .schedule { background: white; border-radius: 10px; padding: 20px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .btn-custom { background: linear-gradient(45deg, #ff6b9d, #c44569); border: none; border-radius: 25px; color: white; box-shadow: 0 2px 10px rgba(255,107,157,0.2); transition: all 0.3s; }
+            .btn-custom:hover { color: white; box-shadow: 0 4px 15px rgba(255,107,157,0.3); transform: translateY(-1px); }
+            .schedule { background: white; border-radius: 15px; padding: 25px; margin: 20px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
             .schedule h5 { color: #8b4513; font-family: 'Playfair Display', serif; }
-            .viewer-count { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 20px; font-weight: bold; color: #c44569; }
+            .viewer-count { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.95); padding: 8px 12px; border-radius: 20px; font-weight: bold; color: #c44569; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .welcome-msg { background: #e9ecef; padding: 10px; border-radius: 10px; margin: 10px 0; font-style: italic; color: #6c757d; }
         </style>
     </head>
     <body>
@@ -444,11 +455,13 @@ app.get('/viewer', (req, res) => {
             <div class="row">
                 <div class="col-md-8">
                     <div class="chat">
-                        <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                        <div class="d-flex justify-content-between align-items-center p-3 border-bottom" style="background: linear-gradient(45deg, #ff6b9d, #c44569); color: white;">
                             <h6 class="mb-0">Live Chat</h6>
                             <span class="badge bg-light text-dark" id="chatViewerCount">0 online</span>
                         </div>
-                        <div id="messages" class="messages"></div>
+                        <div id="messages" class="messages">
+                            <div class="welcome-msg">Welcome to Devika & Lokesh's wedding! Share your love and congratulations below. 💕</div>
+                        </div>
                         <div class="chat-input">
                             <div class="input-group">
                                 <input type="text" id="messageInput" class="form-control" placeholder="Send a congratulatory message..." onkeypress="if(event.key==='Enter') sendMessage()">
@@ -536,6 +549,7 @@ app.get('/viewer', (req, res) => {
             });
 
             socket.on('chat-message', (data) => {
+                console.log('Chat message received:', data);
                 addMessage(data.user, data.message, data.userId === currentUserId);
             });
 
@@ -640,12 +654,14 @@ app.get('/viewer', (req, res) => {
                 const input = document.getElementById('messageInput');
                 const message = input.value.trim();
                 if (message && streamId) {
+                    const user = 'Guest ' + currentUserId.substring(7).toUpperCase();
                     socket.emit('chat-message', {
                         streamId: streamId,
                         userId: currentUserId,
-                        user: 'Guest ' + currentUserId.substring(7).toUpperCase(),
+                        user: user,
                         message: message
                     });
+                    addMessage(user, message, true); // Add locally for instant feedback
                     input.value = '';
                 }
             }
