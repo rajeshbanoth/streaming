@@ -20,6 +20,7 @@ app.use(express.json());
 // Store streams (in production, use a database like Redis or MongoDB)
 let streams = new Map();
 let adminSocket = null;
+let viewerSockets = new Map(); // customViewerId -> socket.id for signaling
 
 // Fixed stream ID for constant view link
 const FIXED_STREAM_ID = 'devika-lokesh-wedding';
@@ -307,7 +308,7 @@ app.get('/admin', (req, res) => {
                 const now = Date.now();
                 const elapsed = Math.floor((now - startTime) / 1000);
                 const hours = Math.floor(elapsed / 3600).toString().padStart(2, '0');
-                const minutes = Math.floor((elapsed % 3600) / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
                 const seconds = (elapsed % 60).toString().padStart(2, '0');
                 document.getElementById('streamDuration').textContent = \`\${hours}:\${minutes}:\${seconds}\`;
             }
@@ -333,6 +334,7 @@ app.get('/admin', (req, res) => {
 
                     // Handle connection state
                     peerConnection.onconnectionstatechange = () => {
+                        console.log('PC state:', peerConnection.connectionState);
                         if (peerConnection.connectionState === 'disconnected') {
                             delete peerConnections[data.viewerId];
                         }
@@ -340,14 +342,16 @@ app.get('/admin', (req, res) => {
                 }
 
                 // Add or replace tracks
-                localStream.getTracks().forEach(track => {
-                    const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === track.kind);
-                    if (sender) {
-                        sender.replaceTrack(track);
-                    } else {
-                        peerConnection.addTrack(track, localStream);
-                    }
-                });
+                if (localStream) {
+                    localStream.getTracks().forEach(track => {
+                        const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === track.kind);
+                        if (sender) {
+                            sender.replaceTrack(track);
+                        } else {
+                            peerConnection.addTrack(track, localStream);
+                        }
+                    });
+                }
 
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
                 const answer = await peerConnection.createAnswer();
@@ -375,13 +379,15 @@ app.get('/admin', (req, res) => {
             });
 
             // Permission check on load
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-                stream.getTracks().forEach(track => track.stop());
-            }).catch(error => {
-                if (error.name === 'NotAllowedError') {
-                    alert('Camera and microphone permissions are required. Please enable them in your browser settings.');
-                }
-            });
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+                    stream.getTracks().forEach(track => track.stop());
+                }).catch(error => {
+                    if (error.name === 'NotAllowedError') {
+                        alert('Camera and microphone permissions are required. Please enable them in your browser settings.');
+                    }
+                });
+            }
         </script>
     </body>
     </html>
@@ -472,6 +478,7 @@ app.get('/viewer', (req, res) => {
             const streamId = '${streamId}';
             let peerConnection = null;
             let currentUserId = 'viewer_' + Math.random().toString(36).substr(2, 9);
+            let streamReady = false;
 
             // Socket events
             socket.on('connect', () => {
@@ -484,8 +491,22 @@ app.get('/viewer', (req, res) => {
             });
 
             socket.on('stream-started', () => {
+                console.log('Stream started received');
                 document.getElementById('status').className = 'status live';
                 document.getElementById('status').textContent = 'Live Now - Ceremony in Progress';
+                if (!peerConnection && streamId) {
+                    setupWebRTC();
+                }
+            });
+
+            socket.on('stream-ready', () => {
+                console.log('Stream ready received');
+                streamReady = true;
+                document.getElementById('status').className = 'status live';
+                document.getElementById('status').textContent = 'Live Now - Ceremony in Progress';
+                if (!peerConnection) {
+                    setupWebRTC();
+                }
             });
 
             socket.on('stream-stopped', () => {
@@ -496,9 +517,11 @@ app.get('/viewer', (req, res) => {
                     peerConnection = null;
                     document.getElementById('videoPlayer').srcObject = null;
                 }
+                streamReady = false;
             });
 
             socket.on('answer', async (data) => {
+                console.log('Answer received');
                 try {
                     await handleAnswer(data);
                 } catch (error) {
@@ -508,6 +531,7 @@ app.get('/viewer', (req, res) => {
             });
 
             socket.on('ice-candidate', (data) => {
+                console.log('ICE candidate received');
                 handleIceCandidate(data);
             });
 
@@ -518,8 +542,15 @@ app.get('/viewer', (req, res) => {
             socket.on('viewer-count', (count) => {
                 document.getElementById('viewerBadge').style.display = 'block';
                 document.getElementById('viewerBadge').textContent = count + ' Viewers';
-                document.getElementById('status').textContent = 'Live Now - ' + count + ' viewers';
+                if (streamReady) {
+                    document.getElementById('status').textContent = 'Live Now - ' + count + ' viewers';
+                }
                 document.getElementById('chatViewerCount').textContent = count + ' online';
+            });
+
+            socket.on('error', (data) => {
+                console.error('Server error:', data.message);
+                document.getElementById('status').textContent = data.message;
             });
 
             // Stream functions
@@ -529,22 +560,29 @@ app.get('/viewer', (req, res) => {
                     return;
                 }
                 socket.emit('join-stream', { streamId: streamId, viewerId: currentUserId });
-                setupWebRTC();
+                console.log('Joined stream:', streamId);
             }
 
             function setupWebRTC() {
+                if (peerConnection) {
+                    console.log('WebRTC already set up');
+                    return;
+                }
+                console.log('Setting up WebRTC');
                 peerConnection = new RTCPeerConnection({
                     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
                 });
 
                 // Handle incoming stream
                 peerConnection.ontrack = (event) => {
+                    console.log('Received remote stream');
                     document.getElementById('videoPlayer').srcObject = event.streams[0];
                 };
 
                 // Handle ICE candidates
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
+                        console.log('Sending ICE candidate');
                         socket.emit('ice-candidate', {
                             streamId: streamId,
                             viewerId: currentUserId,
@@ -555,8 +593,12 @@ app.get('/viewer', (req, res) => {
 
                 // Handle connection state
                 peerConnection.onconnectionstatechange = () => {
-                    if (peerConnection.connectionState === 'failed') {
-                        document.getElementById('status').textContent = 'Connection failed. Refresh page.';
+                    console.log('PC state:', peerConnection.connectionState);
+                    if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
+                        document.getElementById('status').textContent = 'Connection lost. Refresh to reconnect.';
+                        peerConnection = null;
+                    } else if (peerConnection.connectionState === 'connected') {
+                        document.getElementById('status').textContent = 'Connected - Enjoy the live stream!';
                     }
                 };
 
@@ -567,6 +609,7 @@ app.get('/viewer', (req, res) => {
                 try {
                     const offer = await peerConnection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
                     await peerConnection.setLocalDescription(offer);
+                    console.log('Offer created and sent');
                     socket.emit('offer', {
                         streamId: streamId,
                         viewerId: currentUserId,
@@ -575,15 +618,17 @@ app.get('/viewer', (req, res) => {
                 } catch (error) {
                     console.error('Error creating offer:', error);
                     alert('Failed to connect to stream: ' + error.message);
+                    peerConnection = null;
                 }
             }
 
             async function handleAnswer(data) {
+                console.log('Setting remote description from answer');
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
             }
 
             function handleIceCandidate(data) {
-                if (peerConnection && data.viewerId === currentUserId) {
+                if (peerConnection && data.candidate) {
                     peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(error => {
                         console.error('Error adding ICE candidate:', error);
                     });
@@ -598,7 +643,7 @@ app.get('/viewer', (req, res) => {
                     socket.emit('chat-message', {
                         streamId: streamId,
                         userId: currentUserId,
-                        user: 'Guest ' + currentUserId.substring(0, 4).toUpperCase(),
+                        user: 'Guest ' + currentUserId.substring(7).toUpperCase(),
                         message: message
                     });
                     input.value = '';
@@ -617,7 +662,6 @@ app.get('/viewer', (req, res) => {
             function shareStream() {
                 const streamUrl = window.location.href;
                 navigator.clipboard.writeText(streamUrl).then(() => {
-                    new bootstrap.Toast(document.createElement('div')).show(); // Simple alert
                     alert('Stream link copied! Invite friends to join the celebration.');
                 }).catch(() => {
                     alert('Unable to copy. Please copy the URL manually.');
@@ -644,12 +688,19 @@ io.on('connection', (socket) => {
   // Admin starts streaming
   socket.on('start-stream', (data) => {
     try {
-      if (!streams.has(data.streamId)) {
-        streams.set(data.streamId, {
+      let stream = streams.get(data.streamId);
+      if (!stream) {
+        stream = {
           adminId: socket.id,
           viewers: new Set(),
+          started: true,
           startTime: Date.now()
-        });
+        };
+        streams.set(data.streamId, stream);
+      } else {
+        stream.adminId = socket.id;
+        stream.started = true;
+        stream.startTime = Date.now();
       }
       adminSocket = socket;
       socket.join(data.streamId);
@@ -666,22 +717,26 @@ io.on('connection', (socket) => {
     try {
       let stream = streams.get(data.streamId);
       if (!stream) {
-        // Auto-create if admin not started yet (for fixed ID)
-        stream = { adminId: null, viewers: new Set() };
+        stream = {
+          adminId: null,
+          viewers: new Set(),
+          started: false
+        };
         streams.set(data.streamId, stream);
       }
       stream.viewers.add({ id: socket.id, viewerId: data.viewerId });
+      viewerSockets.set(data.viewerId, socket.id);
       socket.join(data.streamId);
 
-      if (stream.adminId) {
-        socket.to(stream.adminId).emit('viewer-connected', { viewerId: data.viewerId });
+      if (stream.started && stream.adminId) {
+        socket.emit('stream-ready');
       }
 
       updateViewerCount(data.streamId);
-      console.log(`Viewer ${socket.id} joined stream ${data.streamId}`);
+      console.log(`Viewer ${data.viewerId} (${socket.id}) joined stream ${data.streamId}`);
     } catch (error) {
       console.error('Error joining stream:', error);
-      socket.emit('error', { message: 'Stream not found' });
+      socket.emit('error', { message: 'Stream not found or unavailable' });
     }
   });
 
@@ -689,11 +744,14 @@ io.on('connection', (socket) => {
   socket.on('offer', (data) => {
     try {
       const stream = streams.get(data.streamId);
-      if (stream && adminSocket && adminSocket.id !== socket.id) {
+      if (stream && adminSocket && stream.adminId === adminSocket.id) {
+        console.log(`Forwarding offer from ${data.viewerId}`);
         adminSocket.emit('offer', {
           viewerId: data.viewerId,
           offer: data.offer
         });
+      } else {
+        console.log('Offer ignored: no admin or stream not active');
       }
     } catch (error) {
       console.error('Error handling offer:', error);
@@ -703,7 +761,13 @@ io.on('connection', (socket) => {
   // WebRTC signaling - Answer from admin
   socket.on('answer', (data) => {
     try {
-      socket.to(data.viewerId).emit('answer', { answer: data.answer });
+      console.log(`Forwarding answer to ${data.viewerId}`);
+      const targetSocketId = viewerSockets.get(data.viewerId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('answer', { answer: data.answer });
+      } else {
+        console.log('Target socket not found for viewerId:', data.viewerId);
+      }
     } catch (error) {
       console.error('Error sending answer:', error);
     }
@@ -712,16 +776,19 @@ io.on('connection', (socket) => {
   // ICE candidates
   socket.on('ice-candidate', (data) => {
     try {
-      if (data.viewerId) {
+      if (data.viewerId && !data.streamId) {
         // From admin to specific viewer
-        socket.to(data.viewerId).emit('ice-candidate', {
-          viewerId: data.viewerId,
-          candidate: data.candidate
-        });
-      } else if (data.streamId) {
+        console.log(`Forwarding ICE from admin to ${data.viewerId}`);
+        const targetSocketId = viewerSockets.get(data.viewerId);
+        if (targetSocketId) {
+          io.to(targetSocketId).emit('ice-candidate', {
+            candidate: data.candidate
+          });
+        }
+      } else if (data.streamId && data.viewerId) {
         // From viewer to admin
-        const stream = streams.get(data.streamId);
-        if (stream && adminSocket) {
+        console.log(`Forwarding ICE from ${data.viewerId} to admin`);
+        if (adminSocket) {
           adminSocket.emit('ice-candidate', {
             viewerId: data.viewerId,
             candidate: data.candidate
@@ -738,6 +805,7 @@ io.on('connection', (socket) => {
     try {
       const stream = streams.get(data.streamId);
       if (stream) {
+        console.log('Broadcasting chat:', data.message);
         socket.to(data.streamId).emit('chat-message', {
           userId: data.userId,
           user: data.user,
@@ -755,6 +823,10 @@ io.on('connection', (socket) => {
       const stream = streams.get(data.streamId);
       if (stream && stream.adminId === socket.id) {
         io.to(data.streamId).emit('stream-stopped');
+        // Clean up viewers for this stream
+        stream.viewers.forEach(viewer => {
+          viewerSockets.delete(viewer.viewerId);
+        });
         streams.delete(data.streamId);
         console.log('Stream stopped:', data.streamId);
       }
@@ -772,15 +844,22 @@ io.on('connection', (socket) => {
         if (stream.adminId === socket.id) {
           // Admin disconnected - stop the stream
           io.to(streamId).emit('stream-stopped');
+          // Clean up
+          stream.viewers.forEach(viewer => {
+            viewerSockets.delete(viewer.viewerId);
+          });
           streams.delete(streamId);
+          adminSocket = null;
           console.log('Stream stopped due to admin disconnect:', streamId);
           break;
         } else {
           // Viewer disconnected
-          const viewer = Array.from(stream.viewers).find(v => v.id === socket.id);
-          if (viewer) {
-            stream.viewers.delete(viewer);
+          const viewerObj = Array.from(stream.viewers).find(v => v.id === socket.id);
+          if (viewerObj) {
+            stream.viewers.delete(viewerObj);
+            viewerSockets.delete(viewerObj.viewerId);
             updateViewerCount(streamId);
+            console.log(`Viewer ${viewerObj.viewerId} disconnected from ${streamId}`);
           }
         }
       }
@@ -805,7 +884,7 @@ io.on('connection', (socket) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = 7050;
 server.listen(PORT, () => {
   console.log(`Devika & Lokesh Wedding Streaming Server running on port ${PORT}`);
   console.log(`Access at: http://localhost:${PORT}`);
